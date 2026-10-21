@@ -1,10 +1,10 @@
-"""DEMON-guided Mel/LOFAR fusion model.
+"""DEMON-guided Mel/MATS fusion model.
 
 Input
 -----
 x: torch.Tensor of shape (batch, 3, frequency_bins, time_frames).
 The channels must be ordered as Mel band energy, DEMON modulation
-spectrogram, and LOFAR tonal saliency. Mel and LOFAR must already be
+spectrogram, and MATS features. Mel and MATS must already be
 aligned to shared acoustic bands by preprocessing.
 
 Output
@@ -118,7 +118,7 @@ class BranchEncoderHybrid(nn.Module):
 
 class MultiScaleFusion2D(nn.Module):
     """
-    Multi-scale 2D fusion after channel-wise Mel/LOFAR concatenation.
+    Multi-scale 2D fusion after channel-wise Mel/MATS concatenation.
 
     Input:  (B, 2*branch_c, F, T/4)
     Output: (B, branch_c,   F, T/4)
@@ -324,10 +324,10 @@ class CenterLoss(nn.Module):
 
 class _DemonGatedModelBase(nn.Module):
     """
-    Shared Mel-LOFAR fusion and DEMON-guided channel-gating backbone.
+    Shared Mel-MATS fusion and DEMON-guided channel-gating backbone.
 
     Mel  -> BranchEncoderHybrid -> mel_feat  (B, branch_c, F, T/4)
-    LOFAR-> BranchEncoderHybrid -> lofar_feat(B, branch_c, F, T/4)
+    MATS-> BranchEncoderHybrid -> mats_feat(B, branch_c, F, T/4)
     cat  -> (B, 2*branch_c, F, T/4)
     MultiScaleFusion2D -> (B, branch_c, F, T/4)
     DEMON -> DemonEncoder -> channel gate for fused acoustic map
@@ -348,8 +348,9 @@ class _DemonGatedModelBase(nn.Module):
         super().__init__()
         self.n_freqs = n_freqs
 
-        # Mel and LOFAR encoders — same structure, separate parameters
+        # Mel and MATS encoders — same structure, separate parameters
         self.mel_encoder = BranchEncoderHybrid(c_out=branch_c, drop_p=drop_p * 0.6)
+        # Legacy attribute name retained for checkpoint compatibility; encodes MATS.
         self.lofar_encoder = BranchEncoderHybrid(c_out=branch_c, drop_p=drop_p * 0.6)
 
         # Multi-scale feature fusion
@@ -399,12 +400,12 @@ class _DemonGatedModelBase(nn.Module):
     # ── acoustic stream ────────────────────────────────────────────────────
     def encode_acoustic(self, x, demon_feat=None):
         mel = x[:, 0:1]                                 # (B, 1, F, T)
-        lofar = x[:, 2:3]                               # (B, 1, F, T)
+        mats = x[:, 2:3]                               # (B, 1, F, T)
 
         mel_feat = self.mel_encoder(mel)                # (B, branch_c, F, T/4)
-        lofar_feat = self.lofar_encoder(lofar)          # (B, branch_c, F, T/4)
+        mats_feat = self.lofar_encoder(mats)          # (B, branch_c, F, T/4)
 
-        fused = torch.cat([mel_feat, lofar_feat], dim=1)  # (B, 2*branch_c, F, T/4)
+        fused = torch.cat([mel_feat, mats_feat], dim=1)  # (B, 2*branch_c, F, T/4)
         fused = self.feature_fuser(fused)               # (B, branch_c, F, T/4)
         if demon_feat is not None:
             fused = self.demon_gate(fused, demon_feat)  # (B, branch_c, F, T/4)
@@ -427,7 +428,7 @@ class _DemonGatedModelBase(nn.Module):
 
 class DemonGatedFusionModel(_DemonGatedModelBase):
     """
-    Main model: Mel-LOFAR feature fusion + DEMON-guided channel gating.
+    Main model: Mel-MATS feature fusion + DEMON-guided channel gating.
 
     DEMON features modulate the fused acoustic feature map, but are not
     concatenated with the final acoustic feature before classification.

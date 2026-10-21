@@ -1,12 +1,17 @@
 # EMGFF
 Selected code and recording-level five-fold splits for EMGFF
-本仓库公开主模型及其必要模块的 PyTorch 实现。
 
-- `model.py`：包含 Mel/MATS 分支编码、多尺度融合、DEMON 通道门控、Transformer、分类头和中心损失，以及主模型自检代码。
-- `README.md`：代码公开范围与基本说明。
+This repository provides the main model implementation in PyTorch and the recording-level five-fold splits for DeepShip and ShipsEar.
 
-模型输入为按 Mel、DEMON、MATS 顺序排列的三路特征，形状为 `(B, 3, F, T)`；输出为特征向量、主分类分数和 DEMON 辅助分类分数。Mel 与 MATS 需提前完成物理频带对齐。
+- `model.py`: Main model, including Mel/MATS encoders, multi-scale fusion, DEMON-guided channel gating, Transformer, classification heads, center loss, and a forward-pass check.
+- `deepship.csv`: Recording-level five-fold assignments for DeepShip.
+- `shipsear.csv`: Recording-level five-fold assignments for ShipsEar.
+- `README.md`: Repository overview and basic usage notes.
 
-依赖 `torch` 和 `einops`，运行 `python model.py` 可进行前向自检。创建优化器或加载权重前，需先用实际特征尺寸执行一次前向计算，完成分类头初始化。
+The CSV files specify the individual recordings assigned to each of the five folds. All segments from the same recording should follow its fold assignment.
 
-本次公开不包含数据集、预处理与训练评估脚本、训练权重及消融模型。
+The model takes preprocessed features of shape `(B, 3, F, T)` in **Mel, DEMON, MATS** order and returns feature vectors, main classification logits, and auxiliary DEMON logits. Mel and MATS must be aligned to shared physical frequency bands during preprocessing.
+
+Dependencies: `torch` and `einops`. Run `python model.py` for a forward-pass check. Before creating an optimizer or loading weights, run a dummy forward pass with the actual feature dimensions to initialize the classification heads.
+
+Raw audio, preprocessing and training/evaluation scripts, trained weights, and ablation models are not included.
